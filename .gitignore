@@ -1,3 +1,4 @@
+prime-spiral.iml
 /target
 /classes
 /checkouts
@@ -17,4 +18,4 @@ pom.xml.asc
 /.shadow-cljs/
 /resources/public/js/
 .rebel_readline_history
-
+.idea/

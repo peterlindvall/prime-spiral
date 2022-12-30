@@ -11,9 +11,11 @@
 (declare div-with-canvas)
 (declare draw-canvas-contents)
 (declare home-page)
+(declare draw-circle)
 (def window-width (reagent/atom nil))
 (defn on-window-resize [ evt ]
   (reset! window-width (.-innerWidth js/window)))
+(defonce squareSize 20)
 
 (defn ^:export main []
   (rdom/render [home-page]
@@ -93,18 +95,36 @@
           [:canvas (if-let [ node @dom-node ]
                      {:width (.-clientWidth node)
                       :height (.-clientHeight node)})]])})))
-
+(defn sqr [x] (* x x))
 (defn draw-canvas-contents [ canvas ]
   (let [ ctx (.getContext canvas "2d")
         w (.-clientWidth canvas)
-        h (.-clientHeight canvas)]
+        h (.-clientHeight canvas)
+        matrixDim (min w h) ;drawing square dimension
+        noOfDigits (sqr (Math/floor (/ (- matrixDim squareSize) squareSize )))]
+    ;(println matrixDim noOfDigits)
     (.beginPath ctx)
     (.moveTo ctx 0 0)
     (.lineTo ctx w h)
     (.moveTo ctx w 0)
     (.lineTo ctx 0 h)
-    (.stroke ctx))
-  (println "draw-canvas-contents -.clientHeight=" window-width))
+    (.stroke ctx)
+    ;(.fillStyle ctx "#000000")
+    ;(.fillRect ctx 300 300 20 20)
+    ;(.fillRect ctx (/ (- w size) 2) (/ (- h size) 2) 20 20)
+    (draw-circle ctx w h 0 0)
+    (draw-circle ctx w h 20 0)
+    (draw-circle ctx w h 20 -20)
+    (draw-circle ctx w h 0 -20)
+    ;(println "w:" w " h:" h)
+    )
+)
+
+(defn draw-circle [ctx width height offsetX offsetY]
+  (.beginPath ctx)
+  (.arc ctx (+ (/ width 2) offsetX ) (+ (/ height 2) offsetY) (/ squareSize 2) 0 ( * 2 Math/PI))
+  (.stroke ctx)
+  )
 
 (comment
   (defn items-page []

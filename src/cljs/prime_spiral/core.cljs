@@ -16,20 +16,24 @@
 (def window-width (reagent/atom nil))
 (defn on-window-resize [evt]
   (reset! window-width (.-innerWidth js/window)))
-(defonce squareSize 80)                                     ;;ToDo Move to state and put in gui
 
 ;;Defining the state
-(def state (atom {:count      0
-                  :direction  "N"
-                  :row-length 1                             ;; current row length. increases every second row
-                  :iteration  0                             ;; n:o rows created with same row length
-                  :step-count 0                             ;; number of steps moved within the row
-                  }))
+(def the-state (atom {
+                      :direction   "E"
+                      :row-length  1                        ;; current row length. increases every second row
+                      :iteration   0                        ;; n:o rows created with same row length
+                      :step-count  0                        ;; number of steps moved within the row
+                      :square-size 175                      ;;ToDo Make available in gui
+                      :x           300
+                      :y           300
+                      :first-run   true
+                      }))
 
 ;; updating the state
-(defn turn! [old-state]
-  (swap! state assoc :direction (next-direction (old-state :direction)))
-  )
+;(defn turn! [old-state]
+;  (swap! state assoc :direction (next-direction (old-state :direction)))
+;  )
+
 (defn next-direction [current-direction]
   (case current-direction
     "E" "N"
@@ -41,42 +45,68 @@
   )
 ;;(swap! m1 assoc :a "Aaay")
 ;;(swap! state #(update % :count inc))
-
-;  function findPrimes(){
-;                        for (let number = 2; number <= sq(matrixSize); number++){
-;                                        if (isPrime(number))
-;                                        primes.add(number);
-;                        }
-;}
-
-;function isPrime(val) {
-;                       if (val < 2) return false;
-;                       for (let i = 2; i <= sqrt(val); i++) {
-;                                  if (val % i == 0) return false;
-;                       }
-;return true;
-;}
-
-(defn meets-condition? [test-with x]
-  (println "(meets-condition?" test-with " " x ")")
-  (= (mod x test-with) 0)
+(defn move-a-step! [state]
+  (let [{
+         row-length :row-length                             ;; current row length. increases every second row
+         iteration  :iteration                              ;; n:o rows created with same row length
+         step-count :step-count                             ;; number of steps moved within the row
+         direction  :direction
+         } state]
+    (println "before m-a-s: " @the-state)
+    (swap! the-state #(update % :step-count inc))           ;; one step has been taken
+    (when (= step-count row-length)
+      (do                                                   ;;time to turn
+        (swap! the-state #(update % :iteration inc))        ;;on (more) row done with this row length
+        (swap! the-state assoc :step-count 0)
+        (swap! the-state assoc :direction (next-direction direction))
+        (when (> iteration 1)                                 ;;increase row length
+          (do
+            (swap! the-state #(update % :row-length inc))   ;;increase row length
+            (swap! the-state assoc :iteration 0)
+            )
+          )
+        )))
+  (println "after m-a-s: " @the-state)
   )
 
 (defn prime? [x]
-;;  (let [values (range 2 x)]
-    (let [values (range 2 (+ 1 (Math/floor(Math/sqrt x))))]
-    (if
-      (or (< x 2) (some #(meets-condition? % x) values));;if x less than 2 or divisible with any value in value
-      (false? 1)                                            ;;return false
-      (true? true)                                          ;;return true
-      )))
+  (let [values (range 2 (+ 1 (Math/floor (Math/sqrt x))))]
+    (and (> x 1) (not (some #(= 0 (mod x %)) values)))      ;;if x greater than 1 and not divisible with any value in values
+    ))
+(defn generate-number-map [no-of-digits]
+  (for [x (range 1 (+ 1 no-of-digits))]
+    {:num x :prime (prime? x)}))
 
-(defn f [x] (* x x))
-(defn g [x] (* x x x))
-(defn generate-the-data []
-  (for [x (range 1 11)]
-    {:num x :prime (prime? x) :cube (g x)}))
+(def offset 175)
+(defn next-coordinate! [state] ;;Todo receive offset as parameter
+  (let [{old-x     :x
+         old-y     :y
+         direction :direction
+         first-run :first-run
+         } state]
+    (if first-run
+      (do
+        (swap! the-state assoc :first-run false)
+        )
+      (do
+        (case direction                                     ;;Not first run, calculate a new coordinate and store it inte the state
+          "E" (swap! the-state assoc :x (+ old-x offset))
+          "S" (swap! the-state assoc :y (+ old-y offset))
+          "W" (swap! the-state assoc :x (- old-x offset))
+          "N" (swap! the-state assoc :y (- old-y offset))
+          )))
+    (move-a-step! @the-state)
+    (list (@the-state :x) (@the-state :y))
+    ))
 
+;(def my-vector [{:a 1 :b 2} {:a 3 :b 4} {:a 5 :b 6}])
+;(def mv-and-coords (map (fn [m] (assoc m :coord (next-coord))) my-vector))
+;(println "-------------------------------")
+;(println mv-and-coords)
+;(println ((first mv-and-coords) :coord))
+(defn add-coordinates [list-of-maps]
+  (map (fn [m] (assoc m :coordinate (next-coordinate! @the-state))) list-of-maps)
+  )
 (defn ^:export main []
   (rdom/render [home-page]
                (.getElementById js/document "app"))
@@ -160,36 +190,38 @@
   (let [ctx (.getContext canvas "2d")
         w (.-clientWidth canvas)
         h (.-clientHeight canvas)
-        matrixDim (min w h)                                 ;drawing square dimension
-        no-of-digits (sqr (Math/floor (/ (- matrixDim squareSize) squareSize)))]
+        matrixDim (min w h)
+        square-size (@the-state :square-size)               ;the dimension of one square in the matrix
+        no-of-digits (sqr (Math/floor (/ (- matrixDim square-size) square-size)))
+        list-of-maps (add-coordinates (generate-number-map no-of-digits))
+        ]
     ;(println matrixDim no-of-digits)
+    ;(println "Initial state: " @the-state)
+    ;(println list-of-maps "\n coll?" (coll? list-of-maps))
     (.beginPath ctx)
     (.moveTo ctx 0 0)
     (.lineTo ctx w h)
     (.moveTo ctx w 0)
     (.lineTo ctx 0 h)
     (.stroke ctx)
-    ;(.fillStyle ctx "#000000")
+    ;(.fillStyle ctx "green")
     ;(.fillRect ctx 300 300 20 20)
     ;(.fillRect ctx (/ (- w size) 2) (/ (- h size) 2) 20 20)
-    (draw-circle ctx w h 0 0)
-    (draw-circle ctx w h 20 0)
-    (draw-circle ctx w h 20 -20)
-    (draw-circle ctx w h 0 -20)
+    (doseq [item list-of-maps]
+      (draw-circle ctx (item :coordinate)))
     ;(println "Initial direction: " (@state :direction))
-    (println "Initial state: " @state)
-    (turn! @state)
-    (println "Altered state: " @state)
-    (println "no-of-digits" no-of-digits)
-    (println (generate-the-data))
+    ;(println "Altered state: " @state)
     )
   )
 
-(defn draw-circle [ctx width height offsetX offsetY]
-  (.beginPath ctx)
-  (.arc ctx (+ (/ width 2) offsetX) (+ (/ height 2) offsetY) (/ squareSize 2) 0 (* 2 Math/PI))
-  (.stroke ctx)
-  )
+(defn draw-circle [ctx coordinates]
+  (let [[x y] coordinates]
+    ;(println "coordinates " coordinates " x:" x " y:" y)
+    (.beginPath ctx)
+    ;(.arc ctx (+ (/ width 2) offsetX) (+ (/ height 2) offsetY) (/ (@state :square-size) 2) 0 (* 2 Math/PI))
+    (.arc ctx x y (/ (@the-state :square-size) 2) 0 (* 2 Math/PI))
+    (.stroke ctx)
+    ))
 
 (comment
   (defn items-page []

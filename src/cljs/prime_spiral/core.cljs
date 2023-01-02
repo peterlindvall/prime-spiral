@@ -18,21 +18,62 @@
   (reset! window-width (.-innerWidth js/window)))
 
 ;;Defining the state
-(def the-state (atom {
-                      :direction   "E"
-                      :row-length  1                        ;; current row length. increases every second row
-                      :iteration   0                        ;; n:o rows created with same row length
-                      :step-count  0                        ;; number of steps moved within the row
-                      :square-size 175                      ;;ToDo Make available in gui
-                      :x           300
-                      :y           300
-                      :first-run   true
-                      }))
+(def the-state (atom {}))
+(defn reset-state! [w h]
+  (reset! the-state {
+                     :direction   "E"
+                     :row-length  1                         ;; current row length. increases every second row
+                     :iteration   0                         ;; n:o rows created with same row length
+                     :step-count  0                         ;; number of steps moved within the row
+                     :square-size 115                       ;;ToDo Make available in gui
+                     :x           (/ w 2)
+                     :y           (/ h 2)
+                     :first-run   true
+                     }
+          ))
 
-;; updating the state
-;(defn turn! [old-state]
-;  (swap! state assoc :direction (next-direction (old-state :direction)))
-;  )
+
+(defn move-a-step! [state]
+  ;    (println "before m-a-s: " @the-state)
+  (println "(the-state :step-count)->" (@the-state :step-count))
+  (swap! the-state #(update % :step-count inc))             ;; one step has been taken
+  (println "(the-state :step-count)->" (@the-state :step-count))
+  (when (= (@the-state :step-count) (@the-state :row-length))
+    (do                                                     ;;time to turn
+      (swap! the-state #(update % :iteration inc))          ;;on (more) row done with this row length
+      (swap! the-state assoc :step-count 0)
+      (swap! the-state assoc :direction (next-direction (@the-state :direction))
+             (when (> (@the-state :iteration) 2)            ;;increase row length
+               (do
+                 (swap! the-state #(update % :row-length inc)) ;;increase row length
+                 (swap! the-state assoc :iteration 0)
+                 )
+               )
+             )))
+  (println "after m-a-s: " @the-state)
+  )
+
+(defn next-coordinate! [state]
+  (let [{old-x       :x
+         old-y       :y
+         direction   :direction
+         first-run   :first-run
+         square-size :square-size
+         } state]
+    (if first-run
+      (do
+        (swap! the-state assoc :first-run false)
+        )
+      (do
+        (case direction                                     ;;Not first run, calculate a new coordinate and store it inte the state
+          "E" (swap! the-state assoc :x (+ old-x square-size))
+          "S" (swap! the-state assoc :y (+ old-y square-size))
+          "W" (swap! the-state assoc :x (- old-x square-size))
+          "N" (swap! the-state assoc :y (- old-y square-size))
+          )))
+    (move-a-step! @the-state)
+    (list (@the-state :x) (@the-state :y))
+    ))
 
 (defn next-direction [current-direction]
   (case current-direction
@@ -43,31 +84,6 @@
     "E"                                                     ;default
     )
   )
-;;(swap! m1 assoc :a "Aaay")
-;;(swap! state #(update % :count inc))
-(defn move-a-step! [state]
-  (let [{
-         row-length :row-length                             ;; current row length. increases every second row
-         iteration  :iteration                              ;; n:o rows created with same row length
-         step-count :step-count                             ;; number of steps moved within the row
-         direction  :direction
-         } state]
-    (println "before m-a-s: " @the-state)
-    (swap! the-state #(update % :step-count inc))           ;; one step has been taken
-    (when (= step-count row-length)
-      (do                                                   ;;time to turn
-        (swap! the-state #(update % :iteration inc))        ;;on (more) row done with this row length
-        (swap! the-state assoc :step-count 0)
-        (swap! the-state assoc :direction (next-direction direction))
-        (when (> iteration 1)                                 ;;increase row length
-          (do
-            (swap! the-state #(update % :row-length inc))   ;;increase row length
-            (swap! the-state assoc :iteration 0)
-            )
-          )
-        )))
-  (println "after m-a-s: " @the-state)
-  )
 
 (defn prime? [x]
   (let [values (range 2 (+ 1 (Math/floor (Math/sqrt x))))]
@@ -77,33 +93,6 @@
   (for [x (range 1 (+ 1 no-of-digits))]
     {:num x :prime (prime? x)}))
 
-(def offset 175)
-(defn next-coordinate! [state] ;;Todo receive offset as parameter
-  (let [{old-x     :x
-         old-y     :y
-         direction :direction
-         first-run :first-run
-         } state]
-    (if first-run
-      (do
-        (swap! the-state assoc :first-run false)
-        )
-      (do
-        (case direction                                     ;;Not first run, calculate a new coordinate and store it inte the state
-          "E" (swap! the-state assoc :x (+ old-x offset))
-          "S" (swap! the-state assoc :y (+ old-y offset))
-          "W" (swap! the-state assoc :x (- old-x offset))
-          "N" (swap! the-state assoc :y (- old-y offset))
-          )))
-    (move-a-step! @the-state)
-    (list (@the-state :x) (@the-state :y))
-    ))
-
-;(def my-vector [{:a 1 :b 2} {:a 3 :b 4} {:a 5 :b 6}])
-;(def mv-and-coords (map (fn [m] (assoc m :coord (next-coord))) my-vector))
-;(println "-------------------------------")
-;(println mv-and-coords)
-;(println ((first mv-and-coords) :coord))
 (defn add-coordinates [list-of-maps]
   (map (fn [m] (assoc m :coordinate (next-coordinate! @the-state))) list-of-maps)
   )
@@ -185,19 +174,20 @@
           [:canvas (if-let [node @dom-node]
                      {:width  (.-clientWidth node)
                       :height (.-clientHeight node)})]])})))
-(defn sqr [x] (* x x))
+
+(defn no-of-digits [canvas]
+  (let [w (.-clientWidth canvas)
+        h (.-clientHeight canvas)
+        matrix-dim (min w h)
+        square-size (@the-state :square-size)               ;the dimension of one square in the matrix
+        ]
+    (Math/pow (Math/floor (/ (- matrix-dim square-size) square-size)) 2)
+    ))
 (defn draw-canvas-contents [canvas]
   (let [ctx (.getContext canvas "2d")
         w (.-clientWidth canvas)
-        h (.-clientHeight canvas)
-        matrixDim (min w h)
-        square-size (@the-state :square-size)               ;the dimension of one square in the matrix
-        no-of-digits (sqr (Math/floor (/ (- matrixDim square-size) square-size)))
-        list-of-maps (add-coordinates (generate-number-map no-of-digits))
-        ]
-    ;(println matrixDim no-of-digits)
-    ;(println "Initial state: " @the-state)
-    ;(println list-of-maps "\n coll?" (coll? list-of-maps))
+        h (.-clientHeight canvas)]
+    (reset-state! w h)
     (.beginPath ctx)
     (.moveTo ctx 0 0)
     (.lineTo ctx w h)
@@ -207,18 +197,14 @@
     ;(.fillStyle ctx "green")
     ;(.fillRect ctx 300 300 20 20)
     ;(.fillRect ctx (/ (- w size) 2) (/ (- h size) 2) 20 20)
-    (doseq [item list-of-maps]
+    (doseq [item (add-coordinates (generate-number-map (no-of-digits canvas)))]
       (draw-circle ctx (item :coordinate)))
-    ;(println "Initial direction: " (@state :direction))
-    ;(println "Altered state: " @state)
     )
   )
 
 (defn draw-circle [ctx coordinates]
   (let [[x y] coordinates]
-    ;(println "coordinates " coordinates " x:" x " y:" y)
     (.beginPath ctx)
-    ;(.arc ctx (+ (/ width 2) offsetX) (+ (/ height 2) offsetY) (/ (@state :square-size) 2) 0 (* 2 Math/PI))
     (.arc ctx x y (/ (@the-state :square-size) 2) 0 (* 2 Math/PI))
     (.stroke ctx)
     ))

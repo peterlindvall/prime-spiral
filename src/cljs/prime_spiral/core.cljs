@@ -24,7 +24,7 @@
                      :row-length  1                         ;; current row length. increases every second row
                      :iteration   0                         ;; n:o rows created with same row length
                      :step-count  0                         ;; number of steps moved within the row
-                     :square-size 10                       ;;ToDo Make available in gui
+                     :square-size 3                         ;;ToDo Make available in gui
                      :x           (/ w 2)
                      :y           (/ h 2)
                      :first-run   true}
@@ -35,7 +35,7 @@
 
 (defn move-a-step! []
   ;(println "before m-a-s: " @the-state)
-  (swap! the-state #(update % :step-count inc))             ;; one step has been taken
+  (swap! the-state #(update % :step-count inc))             ;; take one step
   ;(println "(the-state :step-count)->" (@the-state :step-count))
   (when (= (@the-state :step-count) (@the-state :row-length))
     (do                                                     ;;time to turn
@@ -48,8 +48,8 @@
           )
         )
       (swap! the-state #(update % :iteration inc))          ;;one (more) row done with this row length
-
-      ))
+      )
+    )
   ;(println "after m-a-s: " @the-state)
   )
 
@@ -185,7 +185,10 @@
         ]
     (if debug
       digits
-      (Math/pow (Math/floor (/ (- matrix-dim square-size) square-size)) 2)
+      (do
+        (println (Math/pow (Math/floor (/ (- matrix-dim square-size) square-size)) 2))
+        (Math/pow (Math/floor (/ (- matrix-dim square-size) square-size)) 2)
+        )
       )
     ))
 (defn draw-canvas-contents [canvas]
@@ -193,15 +196,16 @@
         w (.-clientWidth canvas)
         h (.-clientHeight canvas)]
     (reset-state! w h)
-    (.beginPath ctx)
-    (.moveTo ctx 0 0)
-    (.lineTo ctx w h)
-    (.moveTo ctx w 0)
-    (.lineTo ctx 0 h)
-    (.stroke ctx)
-    ;(.fillStyle ctx "green")
-    ;(.fillRect ctx 300 300 20 20)
-    ;(.fillRect ctx (/ (- w size) 2) (/ (- h size) 2) 20 20)
+
+    ;;Draw crosshair
+    ;(.beginPath ctx)
+    ;(.moveTo ctx 0 0)
+    ;(.lineTo ctx w h)
+    ;(.moveTo ctx w 0)
+    ;(.lineTo ctx 0 h)
+    ;(.stroke ctx)
+
+    ;;Draw the prime spiral
     (doseq [item (add-coordinates (generate-number-map (no-of-digits canvas)))]
       (draw-circle ctx (item :coordinate) (item :prime) (item :num)))
     )
@@ -209,12 +213,14 @@
 
 (defn draw-circle [ctx coordinates prime number]
   (let [[x y] coordinates]
-    (set! ctx -fillStyle "black")
-    (.beginPath ctx)
-    (.arc ctx x y (/ (@the-state :square-size) 2) 0 (* 2 Math/PI))
-    (if prime
-      (.fill ctx)
-      (.stroke ctx))
+    (when prime
+
+      (set! ctx -fillStyle "black")
+      (.beginPath ctx)
+      (.arc ctx x y (/ (@the-state :square-size) 2) 0 (* 2 Math/PI))
+      (.fill ctx))                                          ;draw the circle filled
+    ;(.stroke ctx)) ;draw the contour of the circle
+
     ;;Draw text
     ;(set! ctx -fillStyle "#FF0000")
     ;(set! ctx -font "30px Arial")

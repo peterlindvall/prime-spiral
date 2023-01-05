@@ -20,37 +20,37 @@
 ;;Defining the state
 (def the-state (atom {}))
 (defn reset-state! [w h]
-  (reset! the-state {
-                     :direction   "E"
+  (reset! the-state {:direction   "S"
                      :row-length  1                         ;; current row length. increases every second row
                      :iteration   0                         ;; n:o rows created with same row length
                      :step-count  0                         ;; number of steps moved within the row
-                     :square-size 115                       ;;ToDo Make available in gui
+                     :square-size 10                       ;;ToDo Make available in gui
                      :x           (/ w 2)
                      :y           (/ h 2)
-                     :first-run   true
-                     }
+                     :first-run   true}
           ))
 
+;(reset-state! 400 400)
+;(:first-run @the-state)
 
-(defn move-a-step! [state]
-  ;    (println "before m-a-s: " @the-state)
-  (println "(the-state :step-count)->" (@the-state :step-count))
+(defn move-a-step! []
+  ;(println "before m-a-s: " @the-state)
   (swap! the-state #(update % :step-count inc))             ;; one step has been taken
-  (println "(the-state :step-count)->" (@the-state :step-count))
+  ;(println "(the-state :step-count)->" (@the-state :step-count))
   (when (= (@the-state :step-count) (@the-state :row-length))
     (do                                                     ;;time to turn
-      (swap! the-state #(update % :iteration inc))          ;;on (more) row done with this row length
       (swap! the-state assoc :step-count 0)
-      (swap! the-state assoc :direction (next-direction (@the-state :direction))
-             (when (> (@the-state :iteration) 2)            ;;increase row length
-               (do
-                 (swap! the-state #(update % :row-length inc)) ;;increase row length
-                 (swap! the-state assoc :iteration 0)
-                 )
-               )
-             )))
-  (println "after m-a-s: " @the-state)
+      (swap! the-state assoc :direction (next-direction (@the-state :direction)))
+      (when (= (@the-state :iteration) 2)                   ;;increase row length
+        (do
+          (swap! the-state #(update % :row-length inc))     ;;increase row length
+          (swap! the-state assoc :iteration 0)
+          )
+        )
+      (swap! the-state #(update % :iteration inc))          ;;one (more) row done with this row length
+
+      ))
+  ;(println "after m-a-s: " @the-state)
   )
 
 (defn next-coordinate! [state]
@@ -62,7 +62,7 @@
          } state]
     (if first-run
       (do
-        (swap! the-state assoc :first-run false)
+        (swap! the-state assoc :first-run false)            ;;run with initial values
         )
       (do
         (case direction                                     ;;Not first run, calculate a new coordinate and store it inte the state
@@ -71,7 +71,7 @@
           "W" (swap! the-state assoc :x (- old-x square-size))
           "N" (swap! the-state assoc :y (- old-y square-size))
           )))
-    (move-a-step! @the-state)
+    (move-a-step!)
     (list (@the-state :x) (@the-state :y))
     ))
 
@@ -175,13 +175,18 @@
                      {:width  (.-clientWidth node)
                       :height (.-clientHeight node)})]])})))
 
+(def debug false)
+(def digits 16)
 (defn no-of-digits [canvas]
   (let [w (.-clientWidth canvas)
         h (.-clientHeight canvas)
         matrix-dim (min w h)
         square-size (@the-state :square-size)               ;the dimension of one square in the matrix
         ]
-    (Math/pow (Math/floor (/ (- matrix-dim square-size) square-size)) 2)
+    (if debug
+      digits
+      (Math/pow (Math/floor (/ (- matrix-dim square-size) square-size)) 2)
+      )
     ))
 (defn draw-canvas-contents [canvas]
   (let [ctx (.getContext canvas "2d")
@@ -198,15 +203,22 @@
     ;(.fillRect ctx 300 300 20 20)
     ;(.fillRect ctx (/ (- w size) 2) (/ (- h size) 2) 20 20)
     (doseq [item (add-coordinates (generate-number-map (no-of-digits canvas)))]
-      (draw-circle ctx (item :coordinate)))
+      (draw-circle ctx (item :coordinate) (item :prime) (item :num)))
     )
   )
 
-(defn draw-circle [ctx coordinates]
+(defn draw-circle [ctx coordinates prime number]
   (let [[x y] coordinates]
+    (set! ctx -fillStyle "black")
     (.beginPath ctx)
     (.arc ctx x y (/ (@the-state :square-size) 2) 0 (* 2 Math/PI))
-    (.stroke ctx)
+    (if prime
+      (.fill ctx)
+      (.stroke ctx))
+    ;;Draw text
+    ;(set! ctx -fillStyle "#FF0000")
+    ;(set! ctx -font "30px Arial")
+    ;(.fillText ctx number x y)
     ))
 
 (comment

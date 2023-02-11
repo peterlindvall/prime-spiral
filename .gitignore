@@ -1,5 +1,5 @@
 prime-spiral.iml
-/target
+.DS_Store
 /classes
 /checkouts
 profiles.clj
